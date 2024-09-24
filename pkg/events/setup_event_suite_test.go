@@ -2,6 +2,7 @@ package events
 
 import (
 	"github.com/stretchr/testify/suite"
+	"sync"
 	"testing"
 	"time"
 )
@@ -27,7 +28,7 @@ func (e *TestEvent) GetDateTime() time.Time {
 	return time.Now()
 }
 
-func (h *TestEventHandler) Handle(event EventInterface) {}
+func (h *TestEventHandler) Handle(event EventInterface, wg *sync.WaitGroup) {}
 
 type EventDispatcherTestSuite struct {
 	suite.Suite

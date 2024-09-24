@@ -3,14 +3,16 @@ package events
 import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"sync"
 )
 
 type MockHandler struct {
 	mock.Mock
 }
 
-func (m *MockHandler) Handle(event EventInterface) {
+func (m *MockHandler) Handle(event EventInterface, wg *sync.WaitGroup) {
 	m.Called(event)
+	wg.Done()
 }
 
 func (s *EventDispatcherTestSuite) TestEventDispatcher_Register() {
@@ -71,11 +73,45 @@ func (s *EventDispatcherTestSuite) TestEventDispatcher_Dispatch() {
 	evtHdlr := &MockHandler{}
 	evtHdlr.On("Handle", &s.event)
 
+	evtHdlr2 := &MockHandler{}
+	evtHdlr2.On("Handle", &s.event)
+
 	err := s.EventDispatcher.Register(s.event.GetName(), evtHdlr)
 	s.Nil(err)
+	err = s.EventDispatcher.Register(s.event.GetName(), evtHdlr2)
+	s.Nil(err)
+
 	err = s.EventDispatcher.Dispatch(&s.event)
 	s.Nil(err)
 
 	evtHdlr.AssertExpectations(s.T())
+	evtHdlr2.AssertExpectations(s.T())
 	evtHdlr.AssertNumberOfCalls(s.T(), "Handle", 1)
+	evtHdlr2.AssertNumberOfCalls(s.T(), "Handle", 1)
+}
+
+func (s *EventDispatcherTestSuite) TestEventDispatcher_Remove() {
+	err := s.EventDispatcher.Register(s.event.GetName(), &s.handler)
+	s.Nil(err)
+	s.Equal(1, len(s.EventDispatcher.handlers[s.event.GetName()]))
+
+	err = s.EventDispatcher.Register(s.event.GetName(), &s.handler2)
+	s.Nil(err)
+	s.Equal(2, len(s.EventDispatcher.handlers[s.event.GetName()]))
+
+	err = s.EventDispatcher.Register(s.event2.GetName(), &s.handler3)
+	s.Nil(err)
+	s.Equal(1, len(s.EventDispatcher.handlers[s.event2.GetName()]))
+
+	err = s.EventDispatcher.Remove(s.event.GetName(), &s.handler)
+	s.Nil(err)
+	s.Equal(1, len(s.EventDispatcher.handlers[s.event.GetName()]))
+
+	err = s.EventDispatcher.Remove(s.event.GetName(), &s.handler2)
+	s.Nil(err)
+	s.Equal(0, len(s.EventDispatcher.handlers[s.event.GetName()]))
+
+	err = s.EventDispatcher.Remove(s.event2.GetName(), &s.handler3)
+	s.Nil(err)
+	s.Equal(0, len(s.EventDispatcher.handlers[s.event2.GetName()]))
 }
